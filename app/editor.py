@@ -389,9 +389,9 @@ class CodeEditor(QPlainTextEdit):
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
                 if block_number == current_line:
-                    painter.setPen(QColor("#8888FF"))
+                    painter.setPen(QColor("#6dace3"))
                 else:
-                    painter.setPen(QColor("#44445A"))
+                    painter.setPen(QColor("#dcdff2"))
                 painter.setFont(QApplication.font())
                 painter.drawText(
                     0, top,
