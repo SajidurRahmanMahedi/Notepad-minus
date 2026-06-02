@@ -9,7 +9,7 @@ A dark-themed Notepad-style text editor for Windows, built with **Python** and *
 | Feature | Detail |
 |---|---|
 | Custom dark title bar | Frameless window with minimize / maximize / close |
-| Editor font | Bundled **Flexi IBM VGA** (`font/Flexi_IBM_VGA_True.ttf`) — no install required |
+| Editor font | Bundled **Flexi IBM VGA** (`font/RobotoSlab-Regular.ttf`) — no install required |
 | Zoom | **Ctrl + mouse wheel** in the editor (6–72 pt), saved between sessions |
 | Auto-scroll | **Middle-click** toggles scroll mode; move mouse up/down to scroll |
 | Real-time spell check | Red wavy underlines; toggle in **View → Spell Check** |
@@ -135,7 +135,7 @@ Notepad-minus-main/
 ├── main.py                  # Entry point, theme, taskbar icon
 ├── icon.ico                 # App / taskbar icon (Windows)
 ├── font/
-│   └── Flexi_IBM_VGA_True.ttf
+│   └── RobotoSlab-Regular.ttf
 ├── requirements.txt
 ├── Notepad_minus.spec       # PyInstaller spec
 ├── README.md
