@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont,QIcon
+from PyQt6.QtGui import QIcon
 
 from app.theme import DARK_THEME
+from app.fonts import load_editor_font
 from app.window import MainWindow
 
 
@@ -84,9 +85,7 @@ def main():
     # Apply global dark stylesheet
     app.setStyleSheet(DARK_THEME)
 
-    # Default application font
-    font = QFont("Segoe UI", 10)
-    app.setFont(font)
+    load_editor_font()
     app.setWindowIcon(QIcon(ico))
 
     # Create and show the main window

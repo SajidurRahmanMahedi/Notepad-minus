@@ -5,8 +5,6 @@ Dark theme stylesheet for Notepad Minus.
 DARK_THEME = """
 /* ── Global ──────────────────────────────────────────────── */
 * {
-    font-family: "Segoe UI", "Inter", sans-serif;
-    font-size: 13px;
     color: #E0E0E0;
     outline: none;
 }
@@ -92,7 +90,6 @@ QToolButton {
     border-radius: 5px;
     padding: 5px 7px;
     color: #C0C0CC;
-    font-size: 13px;
 }
 
 QToolButton:hover {
@@ -117,7 +114,6 @@ QStatusBar {
     border-top: 1px solid #2A2A35;
     color: #888899;
     padding: 2px 8px;
-    font-size: 12px;
 }
 
 QStatusBar::item {
@@ -126,7 +122,6 @@ QStatusBar::item {
 
 QStatusBar QLabel {
     color: #888899;
-    font-size: 12px;
     padding: 0 8px;
 }
 
@@ -135,10 +130,8 @@ QPlainTextEdit, QTextEdit {
     background-color: #12121A;
     color: #DCDCE8;
     border: none;
-    selection-background-color: #3A3A6A;
+    selection-background-color: #4A7AD9;
     selection-color: #FFFFFF;
-    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-    font-size: 14px;
     line-height: 1.6;
     padding: 8px 4px;
 }
@@ -250,7 +243,6 @@ QPushButton {
     border-radius: 5px;
     padding: 7px 16px;
     color: #CCCCFF;
-    font-weight: 500;
 }
 
 QPushButton:hover {

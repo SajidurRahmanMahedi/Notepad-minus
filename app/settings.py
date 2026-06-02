@@ -8,8 +8,6 @@ from pathlib import Path
 
 
 DEFAULTS = {
-    "font_family": "Consolas",
-    "font_size": 14,
     "word_wrap": True,
     "spell_check": True,
     "auto_save": True,
@@ -20,9 +18,9 @@ DEFAULTS = {
     "recent_files": [],
     "window_geometry": None,
     "window_maximized": False,
-    "zoom_factor": 1.0,
     "show_toolbar": False,
     "show_statusbar": True,
+    "editor_zoom_size": None,
 }
 
 

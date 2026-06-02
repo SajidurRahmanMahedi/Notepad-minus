@@ -24,6 +24,7 @@ class AutoSaveManager(QObject):
         self._get_path = None      # callable -> str | None
         self._encoding = "utf-8"
         self._recovery_path = self._make_recovery_path()
+        self._enabled = True
 
     @staticmethod
     def _make_recovery_path() -> Path:
@@ -43,8 +44,16 @@ class AutoSaveManager(QObject):
     def set_encoding(self, encoding: str):
         self._encoding = encoding
 
+    def set_enabled(self, enabled: bool):
+        self._enabled = enabled
+
+    def is_enabled(self) -> bool:
+        return self._enabled
+
     def trigger(self):
         """Call this on every key press — starts/restarts the debounce timer or saves immediately if delay is 0."""
+        if not self._enabled:
+            return
         if self._delay == 0:
             self._do_save()
         else:

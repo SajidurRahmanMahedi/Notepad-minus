@@ -1,7 +1,7 @@
 """
 Main window for Notepad Minus.
 Frameless window with custom dark title bar, full menu/toolbar,
-status bar, file I/O, encoding, line-ending, Go-To-Line, font dialog, etc.
+status bar, file I/O, encoding, line-ending, Go-To-Line, etc.
 """
 
 import os
@@ -12,12 +12,12 @@ from PyQt6.QtCore import (
     QPoint, QRect, QSize, Qt, QTimer, pyqtSignal,
 )
 from PyQt6.QtGui import (
-    QAction, QColor, QFont, QIcon,
+    QAction, QColor, QIcon,
     QKeySequence, QPainter, QPalette, QTextCursor,
     QCloseEvent,
 )
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QFileDialog, QFontDialog, QHBoxLayout,
+    QApplication, QDialog, QFileDialog, QHBoxLayout,
     QInputDialog, QLabel, QMainWindow, QMenu,
     QMessageBox, QPushButton, QSizePolicy,
     QSizeGrip, QStatusBar, QToolBar, QVBoxLayout,
@@ -58,13 +58,13 @@ class _TitleBar(QWidget):
         # App icon + title
         self._icon_label = QLabel("◧")
         self._icon_label.setStyleSheet(
-            "color: #8888FF; font-size: 16px; margin-right: 6px; background: transparent;"
+            "color: #8888FF; margin-right: 6px; background: transparent;"
         )
         layout.addWidget(self._icon_label)
 
         self._title_label = QLabel("Notepad Minus — Untitled")
         self._title_label.setStyleSheet(
-            "color: #CCCCDD; font-size: 13px; font-weight: 500; background: transparent;"
+            "color: #CCCCDD; background: transparent;"
         )
         layout.addWidget(self._title_label)
         layout.addStretch(1)
@@ -76,8 +76,6 @@ class _TitleBar(QWidget):
                 background: transparent;
                 border: none;
                 color: {fg};
-                font-size: {fs}px;
-                font-family: "Segoe UI", "Segoe UI Symbol", sans-serif;
                 padding: 0;
                 margin: 0;
                 border-radius: 0;
@@ -96,7 +94,7 @@ class _TitleBar(QWidget):
         self._btn_min.setFixedSize(46, 36)
         self._btn_min.setToolTip("Minimize")
         self._btn_min.setStyleSheet(_btn_common.format(
-            fg="#9090B0", fs=14,
+            fg="#9090B0",
             hbg="#2E2E44", hfg="#FFFFFF", pbg="#232338",
         ))
 
@@ -104,7 +102,7 @@ class _TitleBar(QWidget):
         self._btn_max.setFixedSize(46, 36)
         self._btn_max.setToolTip("Maximize")
         self._btn_max.setStyleSheet(_btn_common.format(
-            fg="#9090B0", fs=12,
+            fg="#9090B0",
             hbg="#2E2E44", hfg="#FFFFFF", pbg="#232338",
         ))
 
@@ -112,7 +110,7 @@ class _TitleBar(QWidget):
         self._btn_close.setFixedSize(46, 36)
         self._btn_close.setToolTip("Close")
         self._btn_close.setStyleSheet(_btn_common.format(
-            fg="#9090B0", fs=18,
+            fg="#9090B0",
             hbg="#C0392B", hfg="#FFFFFF", pbg="#962D22",
         ))
 
@@ -272,15 +270,11 @@ class MainWindow(_ResizableFramelessWindow):
         self._status_timer.timeout.connect(self._update_status)
         self._status_timer.start()
 
-        # Auto-focus editor after window is shown
+        # Auto-focus editor with caret at end
         QTimer.singleShot(0, self._focus_editor_at_end)
 
     def _focus_editor_at_end(self):
-        """Focus editor and move cursor to end of document."""
-        self._editor.setFocus()
-        cursor = self._editor.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self._editor.setTextCursor(cursor)
+        self._editor.focus_caret_at_end()
 
     # ── UI Construction ───────────────────────────────────────────────────────
 
@@ -331,6 +325,7 @@ class MainWindow(_ResizableFramelessWindow):
         self._act_open      = self._action("&Open…",             "Ctrl+O",    self._open_file)
         self._act_save      = self._action("&Save",              "Ctrl+S",    self._save_file)
         self._act_save_as   = self._action("Save &As…",          "Ctrl+Shift+S", self._save_file_as)
+        self._act_autosave  = self._checkable_action("Auto &Save", self._toggle_autosave, checked=True)
         self._act_print     = self._action("&Print…",            "Ctrl+P",    self._print_file)
         self._act_exit      = self._action("E&xit",              "Alt+F4",    self.close)
 
@@ -339,6 +334,8 @@ class MainWindow(_ResizableFramelessWindow):
         file_menu.addMenu(self._recent_menu)
         file_menu.addSeparator()
         file_menu.addActions([self._act_save, self._act_save_as])
+        file_menu.addSeparator()
+        file_menu.addAction(self._act_autosave)
         file_menu.addSeparator()
         file_menu.addAction(self._act_print)
         file_menu.addSeparator()
@@ -375,21 +372,15 @@ class MainWindow(_ResizableFramelessWindow):
         self._act_toolbar    = self._checkable_action("&Toolbar", self._toggle_toolbar, checked=False)
         self._act_statusbar  = self._checkable_action("&Status Bar", self._toggle_statusbar, checked=True)
         self._act_spell      = self._checkable_action("&Spell Check", self._toggle_spell, checked=True)
-        self._act_zoom_in    = self._action("Zoom &In",    "Ctrl+=",  self._editor.zoom_in)
-        self._act_zoom_out   = self._action("Zoom &Out",   "Ctrl+-",  self._editor.zoom_out)
-        self._act_zoom_reset = self._action("&Reset Zoom", "Ctrl+0",  self._editor.zoom_reset)
 
         view_menu.addActions([self._act_wrap, self._act_linenum])
         view_menu.addSeparator()
         view_menu.addActions([self._act_toolbar, self._act_statusbar])
         view_menu.addSeparator()
         view_menu.addAction(self._act_spell)
-        view_menu.addSeparator()
-        view_menu.addActions([self._act_zoom_in, self._act_zoom_out, self._act_zoom_reset])
 
         # ── Format
         fmt_menu = mb.addMenu("F&ormat")
-        self._act_font       = self._action("&Font…", None, self._choose_font)
 
         # Encoding submenu
         enc_menu = QMenu("&Encoding", self)
@@ -411,8 +402,6 @@ class MainWindow(_ResizableFramelessWindow):
             le_menu.addAction(act)
         self._le_menu = le_menu
 
-        fmt_menu.addAction(self._act_font)
-        fmt_menu.addSeparator()
         fmt_menu.addMenu(enc_menu)
         fmt_menu.addMenu(le_menu)
 
@@ -448,9 +437,6 @@ class MainWindow(_ResizableFramelessWindow):
         add_toolbar_action(self._act_find, "🔍")
         tb.addSeparator()
         add_toolbar_action(self._act_print, "🖨")
-        tb.addSeparator()
-        add_toolbar_action(self._act_zoom_in, "A⁺")
-        add_toolbar_action(self._act_zoom_out, "A⁻")
 
     def _build_status_bar(self):
         sb = self._status_bar
@@ -464,9 +450,9 @@ class MainWindow(_ResizableFramelessWindow):
 
         for lbl in (self._lbl_pos, self._lbl_words, self._lbl_chars,
                     self._lbl_encoding, self._lbl_le, self._lbl_save):
-            lbl.setStyleSheet("color: #777788; font-size: 12px; padding: 0 10px;")
+            lbl.setStyleSheet("color: #777788; padding: 0 10px;")
 
-        self._lbl_save.setStyleSheet("color: #4CAF50; font-size: 12px; padding: 0 10px;")
+        self._lbl_save.setStyleSheet("color: #4CAF50; padding: 0 10px;")
 
         sep_style = "background: #2A2A35; max-width: 1px; min-width: 1px; min-height: 14px; max-height:14px; margin: 0 2px;"
 
@@ -489,6 +475,7 @@ class MainWindow(_ResizableFramelessWindow):
     def _connect_signals(self):
         self._editor.document().modificationChanged.connect(self._on_modified_changed)
         self._editor.document().contentsChanged.connect(self._on_contents_changed)
+        self._editor.zoom_changed.connect(self._on_zoom_changed)
         self._autosave.saved.connect(self._on_autosaved)
         self._autosave.save_failed.connect(self._on_save_failed)
 
@@ -496,11 +483,6 @@ class MainWindow(_ResizableFramelessWindow):
 
     def _restore_settings(self):
         s = self._settings
-
-        # Font
-        fam = s.get("font_family")
-        sz  = s.get("font_size")
-        self._editor.set_editor_font(fam, sz)
 
         # Word wrap (default on, but remember user preference)
         wrap = s.get("word_wrap")
@@ -513,6 +495,9 @@ class MainWindow(_ResizableFramelessWindow):
         spell = s.get("spell_check")
         self._act_spell.setChecked(spell)
         self._editor.set_spell_check(spell)
+
+        # Editor zoom (Ctrl + scroll)
+        self._editor.set_zoom_point_size(s.get("editor_zoom_size"))
 
         # Line numbers
         linenum = s.get("show_line_numbers")
@@ -536,6 +521,11 @@ class MainWindow(_ResizableFramelessWindow):
         show_sb = s.get("show_statusbar")
         self._act_statusbar.setChecked(show_sb)
         self._status_bar.setVisible(show_sb)
+
+        # Auto-save
+        autosave = s.get("auto_save")
+        self._act_autosave.setChecked(autosave)
+        self._autosave.set_enabled(autosave)
 
         # Window geometry (restore position/size but not maximized state)
         geom = s.get("window_geometry")
@@ -594,6 +584,7 @@ class MainWindow(_ResizableFramelessWindow):
         self._current_path = None
         self._modified = False
         self._editor.document().setModified(False)
+        self._editor.focus_caret_at_end()
         self._update_title()
 
     def _open_file(self, path: str | None = None):
@@ -616,6 +607,7 @@ class MainWindow(_ResizableFramelessWindow):
             self._current_path = path
             self._modified = False
             self._editor.document().setModified(False)
+            self._editor.open_file_view()
             self._update_title()
             self._settings.add_recent_file(path)
         except Exception as e:
@@ -731,15 +723,12 @@ class MainWindow(_ResizableFramelessWindow):
         self._editor.set_spell_check(enabled)
         self._settings.set("spell_check", enabled)
 
-    # ── Format Operations ─────────────────────────────────────────────────────
+    def _toggle_autosave(self):
+        enabled = self._act_autosave.isChecked()
+        self._autosave.set_enabled(enabled)
+        self._settings.set("auto_save", enabled)
 
-    def _choose_font(self):
-        current = self._editor.font()
-        font, ok = QFontDialog.getFont(current, self, "Choose Font")
-        if ok:
-            self._editor.set_editor_font(font.family(), font.pointSize())
-            self._settings.set("font_family", font.family())
-            self._settings.set("font_size", font.pointSize())
+    # ── Format Operations ─────────────────────────────────────────────────────
 
     def _set_encoding(self, enc: str):
         self._encoding = enc
@@ -791,6 +780,9 @@ class MainWindow(_ResizableFramelessWindow):
 
     # ── Signal Handlers ───────────────────────────────────────────────────────
 
+    def _on_zoom_changed(self, point_size: int):
+        self._settings.set("editor_zoom_size", point_size)
+
     def _on_modified_changed(self, modified: bool):
         self._modified = modified
         self._update_title()
@@ -808,15 +800,15 @@ class MainWindow(_ResizableFramelessWindow):
 
     def _on_save_failed(self, err: str):
         self._lbl_save.setText("● Save Error")
-        self._lbl_save.setStyleSheet("color: #FF4444; font-size: 12px; padding: 0 10px;")
+        self._lbl_save.setStyleSheet("color: #FF4444; padding: 0 10px;")
 
     def _set_unsaved_indicator(self):
         self._lbl_save.setText("●  Unsaved")
-        self._lbl_save.setStyleSheet("color: #FFAA44; font-size: 12px; padding: 0 10px;")
+        self._lbl_save.setStyleSheet("color: #FFAA44; padding: 0 10px;")
 
     def _flash_saved(self):
         self._lbl_save.setText("●  Saved")
-        self._lbl_save.setStyleSheet("color: #4CAF50; font-size: 12px; padding: 0 10px;")
+        self._lbl_save.setStyleSheet("color: #4CAF50; padding: 0 10px;")
 
     def _update_status(self):
         ln, col = self._editor.current_line_col()

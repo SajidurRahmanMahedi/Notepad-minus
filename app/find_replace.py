@@ -51,7 +51,7 @@ class FindReplaceDialog(QDialog):
         tb_layout.setSpacing(0)
 
         title_lbl = QLabel("Find & Replace")
-        title_lbl.setStyleSheet("color: #CCCCDD; font-size: 12px; font-weight: 600;")
+        title_lbl.setStyleSheet("color: #CCCCDD;")
         tb_layout.addWidget(title_lbl)
         tb_layout.addStretch(1)
 
@@ -62,8 +62,6 @@ class FindReplaceDialog(QDialog):
                 background: transparent;
                 border: none;
                 color: #8888A0;
-                font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #C0392B;
@@ -136,7 +134,7 @@ class FindReplaceDialog(QDialog):
 
         # ── Status label
         self._status = QLabel("")
-        self._status.setStyleSheet("color: #888899; font-size: 12px;")
+        self._status.setStyleSheet("color: #888899;")
         layout.addWidget(self._status)
 
         # ── Buttons

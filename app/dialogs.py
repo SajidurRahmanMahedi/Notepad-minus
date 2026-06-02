@@ -1,8 +1,7 @@
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QLineEdit, QSpinBox, QWidget
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QLineEdit, QSpinBox, QWidget,
 )
 
 class _FramelessDialog(QDialog):
@@ -27,7 +26,7 @@ class _FramelessDialog(QDialog):
         tb_layout.setSpacing(0)
 
         title_lbl = QLabel(self._title)
-        title_lbl.setStyleSheet("color: #CCCCDD; font-size: 12px; font-weight: 600;")
+        title_lbl.setStyleSheet("color: #CCCCDD;")
         tb_layout.addWidget(title_lbl)
         tb_layout.addStretch(1)
 
@@ -38,8 +37,6 @@ class _FramelessDialog(QDialog):
                 background: transparent;
                 border: none;
                 color: #8888A0;
-                font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #C0392B;
@@ -89,13 +86,13 @@ class DarkMessageBox(_FramelessDialog):
         
         # Icon
         self.icon_lbl = QLabel("ℹ")
-        self.icon_lbl.setStyleSheet(f"color: {icon_color}; font-size: 28px; font-weight: bold;")
+        self.icon_lbl.setStyleSheet(f"color: {icon_color};")
         self.icon_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
         content_layout.addWidget(self.icon_lbl)
         
         # Text
         self.text_lbl = QLabel(text)
-        self.text_lbl.setStyleSheet("color: #E0E0EE; font-size: 13px;")
+        self.text_lbl.setStyleSheet("color: #E0E0EE;")
         self.text_lbl.setWordWrap(True)
         content_layout.addWidget(self.text_lbl, 1)
         
@@ -178,21 +175,13 @@ class DarkInputDialog(_FramelessDialog):
         body_layout.setSpacing(12)
         
         lbl = QLabel(label_text)
-        lbl.setStyleSheet("color: #E0E0EE; font-size: 13px;")
+        lbl.setStyleSheet("color: #E0E0EE;")
         body_layout.addWidget(lbl)
         
         self.spin = QSpinBox()
         self.spin.setRange(min_val, max_val)
         self.spin.setValue(value)
-        self.spin.setStyleSheet("""
-            QSpinBox {
-                background-color: #111118;
-                border: 1px solid #3A3A50;
-                border-radius: 5px;
-                padding: 6px 10px;
-                color: #E0E0EE;
-            }
-        """)
+        self.spin.setStyleSheet(_INPUT_STYLE)
         body_layout.addWidget(self.spin)
         
         btn_layout = QHBoxLayout()
@@ -217,3 +206,17 @@ class DarkInputDialog(_FramelessDialog):
         dialog = cls(parent, title, label_text, value, min_val, max_val)
         res = dialog.exec()
         return dialog.spin.value(), (res == QDialog.DialogCode.Accepted)
+
+
+_INPUT_STYLE = """
+    QLineEdit, QSpinBox {
+        background-color: #111118;
+        border: 1px solid #3A3A50;
+        border-radius: 5px;
+        padding: 6px 10px;
+        color: #E0E0EE;
+    }
+    QLineEdit:focus, QSpinBox:focus {
+        border-color: #5B5BFF;
+    }
+"""

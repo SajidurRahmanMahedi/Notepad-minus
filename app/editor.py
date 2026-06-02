@@ -4,16 +4,17 @@ Core editor widget with:
 - Current-line highlight
 - Real-time spell check (red wavy underlines)
 - Right-click spelling suggestions
-- Zoom via Ctrl+Scroll
 - Tab / indent helpers
+- Ctrl + mouse wheel zoom (size remembered in settings)
+- Middle-click toggle auto-scroll (move mouse up/down to scroll)
 """
 
 import re
 from PyQt6.QtCore import (
-    QPoint, QRect, QSize, Qt, pyqtSignal, QTimer,
+    QPoint, QRect, QSize, Qt, pyqtSignal, QTimer, QEvent,
 )
 from PyQt6.QtGui import (
-    QColor, QFont, QFontMetrics, QPainter, QPen,
+    QColor, QCursor, QFontMetrics, QMouseEvent, QPainter, QPen,
     QTextCursor, QTextOption, QKeySequence, QTextCharFormat,
     QPalette,
 )
@@ -21,7 +22,13 @@ from PyQt6.QtWidgets import (
     QMenu, QPlainTextEdit, QTextEdit, QWidget, QApplication,
 )
 
+from .fonts import EDITOR_FONT_DEFAULT_SIZE, editor_font
 from .spellcheck import SpellCheckEngine, SpellHighlighter, WORD_RE
+
+MIN_ZOOM_PT = 6
+MAX_ZOOM_PT = 72
+ZOOM_STEP = 1
+AUTO_SCROLL_SPEED = 0.35  # fraction of mouse movement applied to scroll
 
 
 # ── Line-number gutter ────────────────────────────────────────────────────────
@@ -46,18 +53,30 @@ class CodeEditor(QPlainTextEdit):
     spell-check underlines, and right-click suggestions.
     """
 
-    zoom_changed = pyqtSignal(int)           # emits current font size
     spell_check_toggle = pyqtSignal(bool)
+    zoom_changed = pyqtSignal(int)
 
     def __init__(self, spell_engine: SpellCheckEngine, parent=None):
         super().__init__(parent)
         self._spell_engine = spell_engine
         self._spell_enabled = True
-        self._base_font_size = 14
-        self._current_zoom = 0  # steps
+        self._default_pt = EDITOR_FONT_DEFAULT_SIZE
+        self._zoom_pt = self._default_pt
+        self._auto_scroll_active = False
+        self._auto_scroll_last_y: int | None = None
+        self._auto_scroll_remainder = 0.0
+        self._auto_scroll_timer = QTimer(self)
+        self._auto_scroll_timer.setInterval(16)
+        self._auto_scroll_timer.timeout.connect(self._auto_scroll_tick)
 
         # Line number area
         self._line_area = _LineNumberArea(self)
+        self._line_area.setMouseTracking(True)
+        self._line_area.installEventFilter(self)
+
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
+        self.viewport().installEventFilter(self)
 
         # Spell highlighter
         self._highlighter = SpellHighlighter(self.document(), spell_engine)
@@ -76,50 +95,176 @@ class CodeEditor(QPlainTextEdit):
 
         self._update_line_area_width(0)
         self._highlight_current_line()
-        self._apply_font()
+        self._apply_zoom()
+        self._apply_selection_colors()
 
-    # ── Font / Zoom ──────────────────────────────────────────────────────────
+    def _apply_selection_colors(self) -> None:
+        """Ensure text selection contrasts with the dark editor background."""
+        pal = self.palette()
+        pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight, QColor("#4A7AD9"))
+        pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+        pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, QColor("#355C94"))
+        pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+        self.setPalette(pal)
 
-    def _apply_font(self):
-        font = QFont("Consolas", self._base_font_size + self._current_zoom)
-        font.setStyleHint(QFont.StyleHint.Monospace)
-        self.setFont(font)
+    # ── Zoom (Ctrl + scroll) ─────────────────────────────────────────────────
+
+    def zoom_point_size(self) -> int:
+        return self._zoom_pt
+
+    def set_zoom_point_size(self, size: int | None) -> None:
+        if size is None:
+            size = self._default_pt
+        clamped = max(MIN_ZOOM_PT, min(MAX_ZOOM_PT, int(size)))
+        if clamped == self._zoom_pt:
+            return
+        self._zoom_pt = clamped
+        self._apply_zoom()
+        self.zoom_changed.emit(self._zoom_pt)
+
+    def _apply_zoom(self) -> None:
+        self.setFont(editor_font(self._zoom_pt))
         self._update_line_area_width(0)
 
-    def set_editor_font(self, family: str, size: int):
-        self._base_font_size = size
-        font = QFont(family, size + self._current_zoom)
-        self.setFont(font)
-        self._update_line_area_width(0)
+    def zoom_in(self, steps: int = 1) -> None:
+        self.set_zoom_point_size(self._zoom_pt + steps * ZOOM_STEP)
 
-    def zoom_in(self, steps: int = 1):
-        self._current_zoom = min(self._current_zoom + steps, 40)
-        self._apply_font()
-        self.zoom_changed.emit(self._base_font_size + self._current_zoom)
-
-    def zoom_out(self, steps: int = 1):
-        self._current_zoom = max(self._current_zoom - steps, -8)
-        self._apply_font()
-        self.zoom_changed.emit(self._base_font_size + self._current_zoom)
-
-    def zoom_reset(self):
-        self._current_zoom = 0
-        self._apply_font()
-        self.zoom_changed.emit(self._base_font_size)
-
-    def current_font_size(self) -> int:
-        return self._base_font_size + self._current_zoom
+    def zoom_out(self, steps: int = 1) -> None:
+        self.set_zoom_point_size(self._zoom_pt - steps * ZOOM_STEP)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             delta = event.angleDelta().y()
             if delta > 0:
                 self.zoom_in()
-            else:
+            elif delta < 0:
                 self.zoom_out()
             event.accept()
             return
         super().wheelEvent(event)
+
+    # ── Open file: scroll to top, caret at end ───────────────────────────────
+
+    def open_file_view(self) -> None:
+        """Caret at end of document; viewport scrolled to the beginning."""
+        self.setFocus()
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.setTextCursor(cursor)
+
+        def _scroll_to_top():
+            self.verticalScrollBar().setValue(0)
+            self._highlight_current_line()
+
+        QTimer.singleShot(0, _scroll_to_top)
+
+    def focus_caret_at_end(self) -> None:
+        """Move caret to end and scroll viewport to show it."""
+        self.setFocus()
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.setTextCursor(cursor)
+        self._highlight_current_line()
+
+    # ── Middle-click auto-scroll ─────────────────────────────────────────────
+
+    def _toggle_auto_scroll(self, global_pos: QPoint) -> None:
+        if self._auto_scroll_active:
+            self._stop_auto_scroll()
+        else:
+            self._start_auto_scroll(global_pos)
+
+    def _start_auto_scroll(self, global_pos: QPoint) -> None:
+        self._auto_scroll_active = True
+        self._auto_scroll_last_y = global_pos.y()
+        QApplication.setOverrideCursor(Qt.CursorShape.SizeVerCursor)
+        self._auto_scroll_timer.start()
+
+    def _stop_auto_scroll(self) -> None:
+        if not self._auto_scroll_active:
+            return
+        self._auto_scroll_active = False
+        self._auto_scroll_last_y = None
+        self._auto_scroll_remainder = 0.0
+        self._auto_scroll_timer.stop()
+        QApplication.restoreOverrideCursor()
+
+    def _auto_scroll_tick(self) -> None:
+        if self._auto_scroll_active:
+            self._apply_auto_scroll(QCursor.pos())
+
+    def _apply_auto_scroll(self, global_pos: QPoint) -> None:
+        if not self._auto_scroll_active or self._auto_scroll_last_y is None:
+            return
+        dy = self._auto_scroll_last_y - global_pos.y()
+        if dy:
+            scroll = dy * AUTO_SCROLL_SPEED + self._auto_scroll_remainder
+            steps = int(scroll)
+            self._auto_scroll_remainder = scroll - steps
+            if steps:
+                bar = self.verticalScrollBar()
+                bar.setValue(bar.value() - steps)
+            self._auto_scroll_last_y = global_pos.y()
+
+    def _handle_middle_press(self, global_pos: QPoint) -> bool:
+        self._toggle_auto_scroll(global_pos)
+        return True
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._handle_middle_press(event.globalPosition().toPoint())
+            event.accept()
+            return
+        if self._auto_scroll_active:
+            self._stop_auto_scroll()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if self._auto_scroll_active:
+            self._apply_auto_scroll(event.globalPosition().toPoint())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def eventFilter(self, watched, event):
+        if watched in (self._line_area, self.viewport()):
+            et = event.type()
+            if et == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.MiddleButton:
+                    return self._handle_middle_press(event.globalPosition().toPoint())
+                if self._auto_scroll_active:
+                    self._stop_auto_scroll()
+            elif et == QEvent.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.MiddleButton:
+                    return True
+            elif et == QEvent.Type.MouseMove and self._auto_scroll_active:
+                self._apply_auto_scroll(event.globalPosition().toPoint())
+                return True
+        return super().eventFilter(watched, event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._auto_scroll_active:
+            self._stop_auto_scroll()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Tab:
+            cur = self.textCursor()
+            if cur.hasSelection():
+                self._indent_selection(cur)
+            else:
+                cur.insertText("    ")
+            return
+        if event.key() == Qt.Key.Key_Backtab:
+            cur = self.textCursor()
+            self._unindent_selection(cur)
+            return
+        super().keyPressEvent(event)
 
     # ── Spell check ──────────────────────────────────────────────────────────
 
@@ -247,7 +392,7 @@ class CodeEditor(QPlainTextEdit):
                     painter.setPen(QColor("#8888FF"))
                 else:
                     painter.setPen(QColor("#44445A"))
-                painter.setFont(self.font())
+                painter.setFont(QApplication.font())
                 painter.drawText(
                     0, top,
                     self._line_area.width() - 6,
@@ -277,24 +422,6 @@ class CodeEditor(QPlainTextEdit):
         self.setExtraSelections(extra)
 
     # ── Key handling ─────────────────────────────────────────────────────────
-
-    def keyPressEvent(self, event):
-        # Smart tab: insert spaces
-        if event.key() == Qt.Key.Key_Tab:
-            cur = self.textCursor()
-            if cur.hasSelection():
-                self._indent_selection(cur)
-            else:
-                cur.insertText("    ")
-            return
-
-        # Smart back-tab (Shift+Tab): unindent
-        if event.key() == Qt.Key.Key_Backtab:
-            cur = self.textCursor()
-            self._unindent_selection(cur)
-            return
-
-        super().keyPressEvent(event)
 
     def _indent_selection(self, cursor: QTextCursor):
         start = cursor.selectionStart()
