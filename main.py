@@ -14,7 +14,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
 from app.theme import DARK_THEME
-from app.fonts import load_editor_font
 from app.window import MainWindow
 
 
@@ -85,7 +84,6 @@ def main():
     # Apply global dark stylesheet
     app.setStyleSheet(DARK_THEME)
 
-    load_editor_font()
     app.setWindowIcon(QIcon(ico))
 
     # Create and show the main window

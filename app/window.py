@@ -653,10 +653,9 @@ class MainWindow(_ResizableFramelessWindow):
             return False
 
     def _print_file(self):
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        dlg = QPrintDialog(printer, self)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            self._editor.document().print(printer)
+        from .dialogs import CustomPrintDialog
+        dialog = CustomPrintDialog(self, self._editor.document())
+        dialog.exec()
 
     # ── Edit Operations ───────────────────────────────────────────────────────
 

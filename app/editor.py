@@ -6,20 +6,19 @@ Core editor widget with:
 - Right-click spelling suggestions
 - Tab / indent helpers
 - Ctrl + mouse wheel zoom (size remembered in settings)
-- Middle-click toggle auto-scroll (move mouse up/down to scroll)
 """
 
 import re
 from PyQt6.QtCore import (
-    QPoint, QRect, QSize, Qt, pyqtSignal, QTimer, QEvent,
+    QPoint, QRect, QSize, Qt, pyqtSignal, QTimer,
 )
 from PyQt6.QtGui import (
-    QColor, QCursor, QFontMetrics, QMouseEvent, QPainter, QPen,
+    QColor, QFontMetrics, QMouseEvent, QPainter, QPen,
     QTextCursor, QTextOption, QKeySequence, QTextCharFormat,
     QPalette,
 )
 from PyQt6.QtWidgets import (
-    QMenu, QPlainTextEdit, QTextEdit, QWidget, QApplication,
+    QMenu, QPlainTextEdit, QTextEdit, QWidget,
 )
 
 from .fonts import EDITOR_FONT_DEFAULT_SIZE, editor_font
@@ -28,7 +27,6 @@ from .spellcheck import SpellCheckEngine, SpellHighlighter, WORD_RE
 MIN_ZOOM_PT = 6
 MAX_ZOOM_PT = 72
 ZOOM_STEP = 1
-AUTO_SCROLL_SPEED = 0.35  # fraction of mouse movement applied to scroll
 
 
 # ── Line-number gutter ────────────────────────────────────────────────────────
@@ -62,20 +60,11 @@ class CodeEditor(QPlainTextEdit):
         self._spell_enabled = True
         self._default_pt = EDITOR_FONT_DEFAULT_SIZE
         self._zoom_pt = self._default_pt
-        self._auto_scroll_active = False
-        self._auto_scroll_last_y: int | None = None
-        self._auto_scroll_remainder = 0.0
-        self._auto_scroll_timer = QTimer(self)
-        self._auto_scroll_timer.setInterval(16)
-        self._auto_scroll_timer.timeout.connect(self._auto_scroll_tick)
 
         # Line number area
         self._line_area = _LineNumberArea(self)
-        self._line_area.setMouseTracking(True)
         self._line_area.installEventFilter(self)
 
-        self.setMouseTracking(True)
-        self.viewport().setMouseTracking(True)
         self.viewport().installEventFilter(self)
 
         # Spell highlighter
@@ -166,93 +155,19 @@ class CodeEditor(QPlainTextEdit):
         self.setTextCursor(cursor)
         self._highlight_current_line()
 
-    # ── Middle-click auto-scroll ─────────────────────────────────────────────
-
-    def _toggle_auto_scroll(self, global_pos: QPoint) -> None:
-        if self._auto_scroll_active:
-            self._stop_auto_scroll()
-        else:
-            self._start_auto_scroll(global_pos)
-
-    def _start_auto_scroll(self, global_pos: QPoint) -> None:
-        self._auto_scroll_active = True
-        self._auto_scroll_last_y = global_pos.y()
-        QApplication.setOverrideCursor(Qt.CursorShape.SizeVerCursor)
-        self._auto_scroll_timer.start()
-
-    def _stop_auto_scroll(self) -> None:
-        if not self._auto_scroll_active:
-            return
-        self._auto_scroll_active = False
-        self._auto_scroll_last_y = None
-        self._auto_scroll_remainder = 0.0
-        self._auto_scroll_timer.stop()
-        QApplication.restoreOverrideCursor()
-
-    def _auto_scroll_tick(self) -> None:
-        if self._auto_scroll_active:
-            self._apply_auto_scroll(QCursor.pos())
-
-    def _apply_auto_scroll(self, global_pos: QPoint) -> None:
-        if not self._auto_scroll_active or self._auto_scroll_last_y is None:
-            return
-        dy = self._auto_scroll_last_y - global_pos.y()
-        if dy:
-            scroll = dy * AUTO_SCROLL_SPEED + self._auto_scroll_remainder
-            steps = int(scroll)
-            self._auto_scroll_remainder = scroll - steps
-            if steps:
-                bar = self.verticalScrollBar()
-                bar.setValue(bar.value() - steps)
-            self._auto_scroll_last_y = global_pos.y()
-
-    def _handle_middle_press(self, global_pos: QPoint) -> bool:
-        self._toggle_auto_scroll(global_pos)
-        return True
-
     def mousePressEvent(self, event: QMouseEvent):
-        if event.button() == Qt.MouseButton.MiddleButton:
-            self._handle_middle_press(event.globalPosition().toPoint())
-            event.accept()
-            return
-        if self._auto_scroll_active:
-            self._stop_auto_scroll()
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        if event.button() == Qt.MouseButton.MiddleButton:
-            event.accept()
-            return
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        if self._auto_scroll_active:
-            self._apply_auto_scroll(event.globalPosition().toPoint())
-            event.accept()
-            return
         super().mouseMoveEvent(event)
 
     def eventFilter(self, watched, event):
-        if watched in (self._line_area, self.viewport()):
-            et = event.type()
-            if et == QEvent.Type.MouseButtonPress:
-                if event.button() == Qt.MouseButton.MiddleButton:
-                    return self._handle_middle_press(event.globalPosition().toPoint())
-                if self._auto_scroll_active:
-                    self._stop_auto_scroll()
-            elif et == QEvent.Type.MouseButtonRelease:
-                if event.button() == Qt.MouseButton.MiddleButton:
-                    return True
-            elif et == QEvent.Type.MouseMove and self._auto_scroll_active:
-                self._apply_auto_scroll(event.globalPosition().toPoint())
-                return True
         return super().eventFilter(watched, event)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape and self._auto_scroll_active:
-            self._stop_auto_scroll()
-            event.accept()
-            return
         if event.key() == Qt.Key.Key_Tab:
             cur = self.textCursor()
             if cur.hasSelection():

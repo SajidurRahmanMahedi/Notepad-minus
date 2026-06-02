@@ -64,5 +64,6 @@ desktop.ini
 
 # Project-specific
 Output/
+font/
 *.exe
 *.msi
