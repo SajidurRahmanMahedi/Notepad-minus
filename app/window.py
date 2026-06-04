@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
     QSizeGrip, QStatusBar, QToolBar, QVBoxLayout,
     QWidget, QMenuBar, QFrame, QSpacerItem,
 )
-from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 from .editor import CodeEditor
 from .spellcheck import SpellCheckEngine
@@ -326,7 +325,6 @@ class MainWindow(_ResizableFramelessWindow):
         self._act_save      = self._action("&Save",              "Ctrl+S",    self._save_file)
         self._act_save_as   = self._action("Save &As…",          "Ctrl+Shift+S", self._save_file_as)
         self._act_autosave  = self._checkable_action("Auto &Save", self._toggle_autosave, checked=True)
-        self._act_print     = self._action("&Print…",            "Ctrl+P",    self._print_file)
         self._act_exit      = self._action("E&xit",              "Alt+F4",    self.close)
 
         self._recent_menu = QMenu("&Recent Files", self)
@@ -337,7 +335,6 @@ class MainWindow(_ResizableFramelessWindow):
         file_menu.addSeparator()
         file_menu.addAction(self._act_autosave)
         file_menu.addSeparator()
-        file_menu.addAction(self._act_print)
         file_menu.addSeparator()
         file_menu.addAction(self._act_exit)
         file_menu.aboutToShow.connect(self._refresh_recent_menu)
@@ -435,8 +432,6 @@ class MainWindow(_ResizableFramelessWindow):
         add_toolbar_action(self._act_paste, "📋")
         tb.addSeparator()
         add_toolbar_action(self._act_find, "🔍")
-        tb.addSeparator()
-        add_toolbar_action(self._act_print, "🖨")
 
     def _build_status_bar(self):
         sb = self._status_bar
@@ -652,10 +647,6 @@ class MainWindow(_ResizableFramelessWindow):
             DarkMessageBox.critical(self, "Save Error", f"Cannot save file:\n{e}")
             return False
 
-    def _print_file(self):
-        from .dialogs import CustomPrintDialog
-        dialog = CustomPrintDialog(self, self._editor.document())
-        dialog.exec()
 
     # ── Edit Operations ───────────────────────────────────────────────────────
 

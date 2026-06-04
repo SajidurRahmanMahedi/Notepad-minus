@@ -22,7 +22,6 @@ A dark-themed Notepad-style text editor for Windows, built with **Python** and *
 | Encoding | UTF-8, UTF-16, or ANSI — **Format → Encoding** and status bar |
 | Line endings | CRLF, LF, or CR — **Format → Line Ending** and status bar |
 | Go to line | **Ctrl+G** |
-| Print | **Ctrl+P** |
 | Date/time insert | **F5** |
 | Recent files | Last 10 paths under **File → Recent Files** |
 | Word wrap | **View → Word Wrap** |
@@ -84,7 +83,6 @@ The built app expects `icon.ico` beside the executable (same as `main.py` uses i
 | Open | Ctrl+O |
 | Save | Ctrl+S |
 | Save As | Ctrl+Shift+S |
-| Print | Ctrl+P |
 | Find / Replace | Ctrl+F |
 | Go to Line | Ctrl+G |
 | Undo | Ctrl+Z |
